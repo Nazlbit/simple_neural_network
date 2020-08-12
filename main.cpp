@@ -23,7 +23,7 @@ struct neural_net
 {
 	struct layer
 	{
-		unsigned size = 0;
+		const unsigned size;
 		matrix<float> weights;
 		matrix<float> biases;
 
@@ -47,15 +47,15 @@ struct neural_net
 	};
 
 	std::vector<layer> layers;
-	unsigned input_layer_size = 0;
+	unsigned input_layer_size;
 
 	neural_net(unsigned num_layers, unsigned* layer_sizes)
 	{
 		assert(num_layers > 1);
 		assert(layer_sizes != nullptr);
-
-		input_layer_size = layer_sizes[0];
 		
+		input_layer_size = layer_sizes[0];
+
 		layers.reserve(num_layers - 1);
 
 		//Init layers
@@ -85,7 +85,34 @@ struct neural_net
 		{
 			input = activation_function(input * l.weights + l.biases);
 		}
+
 		return input;
+	}
+
+	std::vector<matrix<float>> run2(matrix<float> input)
+	{
+		assert(input.get_width() == input_layer_size);
+		assert(input.get_height() == 1);
+
+		std::vector<matrix<float>> result;
+		result.reserve(layers.size() + 1);
+		result.push_back(std::move(input));
+
+		for (const layer& l : layers)
+		{
+			result.push_back(activation_function(result.back() * l.weights + l.biases));
+		}
+
+		return result;
+	}
+
+	void foo()
+	{
+		matrix<float> input(layers.front().size, 1);
+		matrix<float> required_output(layers.back().size, 1);
+
+		std::vector<matrix<float>> values = run2(input);
+
 	}
 };
 
@@ -101,7 +128,16 @@ int main()
 	input.at(0, 1) = 0.2f;
 	input.at(0, 2) = 0.8f;
 
-	matrix<float> output = test.run(input);
+	std::vector<matrix<float>> values = test.run2(input);
+	for (const matrix<float> l : values)
+	{
+		for (unsigned i = 0; i < l.get_width(); i++)
+		{
+			std::cout << l.at(0, i) << " ";
+		}
+
+		std::cout << std::endl;
+	}
 
 	return 0;
 }
