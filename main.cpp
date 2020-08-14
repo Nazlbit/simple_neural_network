@@ -24,8 +24,8 @@ struct neural_net
 	struct layer
 	{
 		const unsigned size;
-		matrix<float> weights;
-		matrix<float> biases;
+		matrix weights;
+		matrix biases;
 
 		layer(unsigned size, unsigned prev_layer_size) : size(size), biases(size, 1), weights(size, prev_layer_size)
 		{
@@ -65,7 +65,7 @@ struct neural_net
 		}
 	}
 
-	matrix<float> activation_function(matrix<float> input)
+	matrix activation_function(matrix input) const
 	{
 		assert(input.get_height() == 1);
 
@@ -76,27 +76,29 @@ struct neural_net
 		return input;
 	}
 
-	matrix<float> run(matrix<float> input)
+	matrix run(const matrix& input) const
 	{
 		assert(input.get_width() == input_layer_size);
 		assert(input.get_height() == 1);
+
+		matrix result = input;
 
 		for (const layer& l : layers)
 		{
-			input = activation_function(input * l.weights + l.biases);
+			result = activation_function(result * l.weights + l.biases);
 		}
 
-		return input;
+		return result;
 	}
 
-	std::vector<matrix<float>> run2(matrix<float> input)
+	std::vector<matrix> run2(const matrix& input) const
 	{
 		assert(input.get_width() == input_layer_size);
 		assert(input.get_height() == 1);
 
-		std::vector<matrix<float>> result;
+		std::vector<matrix> result;
 		result.reserve(layers.size() + 1);
-		result.push_back(std::move(input));
+		result.push_back(input);
 
 		for (const layer& l : layers)
 		{
@@ -106,15 +108,42 @@ struct neural_net
 		return result;
 	}
 
-	void foo()
+	void backpropagation(const matrix& input, const matrix& required_output, float rate)
 	{
-		matrix<float> input(layers.front().size, 1);
-		matrix<float> required_output(layers.back().size, 1);
+		assert(input.get_width() == input_layer_size);
+		assert(input.get_height() == 1);
+		assert(required_output.get_width() == layers.back().size);
+		assert(required_output.get_height() == 1);
+		assert(rate > 0);
 
-		std::vector<matrix<float>> values = run2(input);
+		std::vector<matrix> values = run2(input);
+		
+		matrix x = values.back() - required_output;
+		
+		for (unsigned i = values.size() - 1; i > 0; i--)
+		{
+			x = hadamard_product(x, hadamard_product(values[i], (1.f - values[i]))); // sigmoid derivative
 
+			layers[i - 1].biases = layers[i - 1].biases - x * rate;
+
+			matrix weights_derivatives = transpose(values[i - 1]) * x;
+
+			x = transpose(layers[i - 1].weights * transpose(x));
+
+			layers[i - 1].weights = layers[i - 1].weights - weights_derivatives * rate;
+		}
 	}
 };
+
+void print(const matrix& values)
+{
+
+	for (unsigned i = 0; i < values.get_width(); i++)
+	{
+		std::cout << values.at(0, i) << " ";
+	}
+	std::cout << std::endl;
+}
 
 int main()
 {
@@ -123,21 +152,20 @@ int main()
 
 	neural_net test(num_layers, layer_sizes);
 
-	matrix<float> input(3, 1);
+	matrix input(3, 1);
 	input.at(0, 0) = 0.5f;
 	input.at(0, 1) = 0.2f;
 	input.at(0, 2) = 0.8f;
 
-	std::vector<matrix<float>> values = test.run2(input);
-	for (const matrix<float> l : values)
+	matrix required_output(2,1);
+	required_output.at(0, 0) = 1.f;
+	required_output.at(0, 1) = 0.f;
+
+	print(test.run(input));
+	for (int i = 0; i < 100900; i++)
 	{
-		for (unsigned i = 0; i < l.get_width(); i++)
-		{
-			std::cout << l.at(0, i) << " ";
-		}
-
-		std::cout << std::endl;
+		test.backpropagation(input, required_output, 5.f);
 	}
-
+	print(test.run(input));
 	return 0;
 }
