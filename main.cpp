@@ -91,7 +91,7 @@ struct neural_net
 		return result;
 	}
 
-	std::vector<matrix> run2(const matrix& input) const
+	std::vector<matrix> run_ext_output(const matrix& input) const
 	{
 		assert(input.get_width() == input_layer_size);
 		assert(input.get_height() == 1);
@@ -108,36 +108,42 @@ struct neural_net
 		return result;
 	}
 
-	void backpropagation(const matrix& input, const matrix& required_output, float rate)
+	bool backpropagation(const matrix& input, const matrix& required_output, float rate, float threshold)
 	{
+		assert(input.is_alive() && required_output.is_alive());
 		assert(input.get_width() == input_layer_size);
 		assert(input.get_height() == 1);
 		assert(required_output.get_width() == layers.back().size);
 		assert(required_output.get_height() == 1);
 		assert(rate > 0);
+		assert(threshold > 0);
 
-		std::vector<matrix> values = run2(input);
+		std::vector<matrix> values = run_ext_output(input); // Calculate initial neurons activation values
 		
-		matrix x = values.back() - required_output;
+		matrix x = values.back() - required_output; // Delta
 		
-		for (unsigned i = values.size() - 1; i > 0; i--)
+		if ((x * transpose(x)).at(0, 0) < threshold) // dot(x, x) - sum of squared deltas < threshold
+			return false;
+
+		for (unsigned i = values.size() - 1; i > 0; i--) // For every layer starting from the last
 		{
-			x = hadamard_product(x, hadamard_product(values[i], (1.f - values[i]))); // sigmoid derivative
+			x = hadamard_product(x, hadamard_product(values[i], (1.f - values[i]))); // Sigmoid partial derivative
 
-			layers[i - 1].biases = layers[i - 1].biases - x * rate;
+			layers[i - 1].biases = layers[i - 1].biases - x * rate; // Calculate new bias
 
-			matrix weights_derivatives = transpose(values[i - 1]) * x;
+			matrix weights_derivatives = transpose(values[i - 1]) * x; // Weights partial derivative
 
-			x = transpose(layers[i - 1].weights * transpose(x));
+			x = transpose(layers[i - 1].weights * transpose(x)); // Neuron connection partial derivative
 
-			layers[i - 1].weights = layers[i - 1].weights - weights_derivatives * rate;
+			layers[i - 1].weights = layers[i - 1].weights - weights_derivatives * rate; // Calculate new weights
 		}
+
+		return true;
 	}
 };
 
 void print(const matrix& values)
 {
-
 	for (unsigned i = 0; i < values.get_width(); i++)
 	{
 		std::cout << values.at(0, i) << " ";
@@ -161,11 +167,24 @@ int main()
 	required_output.at(0, 0) = 1.f;
 	required_output.at(0, 1) = 0.f;
 
+	// Print initial output
+	std::cout << "Initial output:" << std::endl;
 	print(test.run(input));
-	for (int i = 0; i < 100900; i++)
-	{
-		test.backpropagation(input, required_output, 5.f);
-	}
-	print(test.run(input));
+	std::cout << std::endl;
+
+	// Run backpropagation
+	int i = 0;
+	while(test.backpropagation(input, required_output, exp(i * 2.f), 1e-9f)) i++;
+
+	// Calculate Sum of square deltas
+	matrix result = test.run(input);
+	matrix delta = required_output - result;
+	float delta_square_sum = (delta * transpose(delta)).at(0, 0);
+
+	// Print results
+	std::cout << "Num iterations: " << i << std::endl;
+	std::cout << "Sum of squared deltas : " << delta_square_sum << std::endl;
+	print(result);
+
 	return 0;
 }
