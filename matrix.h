@@ -51,6 +51,20 @@ public:
 		assert(column < width);
 		return values[column * height + row];
 	}
+
+	float& at(unsigned index)
+	{
+		assert(index < height* width);
+		return values[index];
+	}
+
+	const float& at(unsigned index) const
+	{
+		assert(index < height* width);
+		return values[index];
+	}
+
+	matrix get_submatrix(unsigned row_a, unsigned column_a, unsigned row_b, unsigned column_b) const;
 };
 
 matrix hadamard_product(const matrix& a, const matrix& b);
