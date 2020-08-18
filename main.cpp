@@ -81,80 +81,53 @@ void digits()
 
 	const unsigned input_layer_size = images.num_of_rows * images.num_of_columns;
 	const unsigned items_num = images.items_num;
-	const unsigned items_num_test = 100;
+	const unsigned batch_size = 100;
+	const unsigned num_batches = items_num / batch_size;
 
-	matrix input(input_layer_size, items_num);
-	matrix required_output(10, items_num, 0.f);
-
-	matrix input_test(input_layer_size, items_num_test);
-	matrix required_output_test(10, items_num_test, 0.f);
+	std::vector<matrix> input(num_batches);
+	std::vector<matrix> required_output(num_batches);
 
 	const float mul = 1.f / 255;
 
 	//Init train data
-	for (int32_t i = 0; i < items_num; i++)
+	for (unsigned i = 0; i < num_batches; i++)
 	{
-		//Input layer
+		input[i] = matrix(input_layer_size, batch_size);
+		required_output[i] = matrix(10, batch_size, 0.f);
 
-		char* img_start_addr = images.data.get_data() + i * input_layer_size + 16;
-		
-		for (unsigned j = 0; j < input_layer_size; j++)
+		for (unsigned j = 0; j < batch_size; j++)
 		{
-			input.at(i, j) = *reinterpret_cast<uint8_t*>(img_start_addr + j) * mul;
+			for (unsigned k = 0; k < input_layer_size; k++)
+			{
+				const char* pixel_addr = images.data.get_data() + 16 + input_layer_size * (i * batch_size + j) + k;
+				input[i].at(j, k) = *reinterpret_cast<const uint8_t*>(pixel_addr) * mul;
+			}
+			const char* label_addr = labels.data.get_data() + 8 + batch_size * i + j;
+			required_output[i].at(j, *reinterpret_cast<const uint8_t*>(label_addr)) = 1.f;
 		}
-
-		//Output layer
-
-		required_output.at(i, *reinterpret_cast<uint8_t*>(labels.data.get_data() + i + 8)) = 1.f;
-	}
-
-	//Init test data
-	for (int32_t i = 0; i < items_num_test; i++)
-	{
-		//Input layer
-
-		char* img_start_addr = images.data.get_data() + i * input_layer_size + 16;
-
-		for (unsigned j = 0; j < input_layer_size; j++)
-		{
-			input_test.at(i, j) = *reinterpret_cast<uint8_t*>(img_start_addr + j) * mul; //Shifted by items_num images
-		}
-
-		//Output layer
-
-		required_output_test.at(i, *reinterpret_cast<uint8_t*>(labels.data.get_data() + i + 8)) = 1.f;
 	}
 
 	const unsigned num_layers = 4;
 	const unsigned layer_sizes[num_layers] = {input_layer_size, 16, 16, 10};
 	neural_net net(num_layers, layer_sizes);
 
-	float error = neural_net::calculate_error(net.run(input_test), required_output_test);
+	float error = neural_net::calculate_error(net.run(input[0]), required_output[0]);
 	unsigned iter = 0;
 
 	std::cout << "Training...\n";
 
-	while(error > 0.01f)
+	while(error > 0.06f)
 	{
 		iter++;
 		std::cout << "Iteration #" << iter << '\n';
 
-		net.backpropagation(input, required_output, 0.0001f);
-		error = neural_net::calculate_error(net.run(input_test), required_output_test);
+		const unsigned batch_index = (iter - 1) % num_batches;
+		net.backpropagation(input[batch_index], required_output[batch_index], 0.1f);
+		error = neural_net::calculate_error(net.run(input[0]), required_output[0]);
 		std::cout << "Error: " << error << '\n';
+
+		if(iter%100 == 0) net.save_to_file("digits_net.bin");
 	}
-
-	std::cout << "TEST:\n";
-
-	matrix result = net.run(input_test);
-	error = neural_net::calculate_error(result, required_output_test);
-
-	print(result);
-	std::cout << '\n';
-	print(required_output_test);
-	std::cout << "Error: " << error << '\n';
-
-	for (int i = 0; i < 5 && !net.save_to_file("digits_net.bin"); i++);
 }
 
 void simple_example()
@@ -204,9 +177,8 @@ void simple_example()
 
 int main()
 {
-	simple_example();
-	//Takes a lot of time to train
-	//digits();
+	//simple_example();
+	digits();
 	
 	return 0;
 }

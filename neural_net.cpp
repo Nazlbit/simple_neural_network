@@ -31,6 +31,11 @@ neural_net::neural_net(const unsigned num_layers, const unsigned* const layer_si
 	}
 }
 
+neural_net::neural_net(const char* const file_name)
+{
+	load_from_file(file_name);
+}
+
 matrix neural_net::run(const matrix& input) const
 {
 	assert(input.get_width() == input_layer_size);

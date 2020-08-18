@@ -21,6 +21,7 @@ class neural_net
 
 public:
 	neural_net(const unsigned num_layers, const unsigned* const layer_sizes);
+	neural_net(const char* const file_name);
 
 	matrix run(const matrix& input) const;
 

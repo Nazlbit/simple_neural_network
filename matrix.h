@@ -9,6 +9,8 @@ private:
 	unsigned height;
 
 public:
+	matrix() : values(nullptr), width(0), height(0) {}
+
 	matrix(unsigned width, unsigned height);
 
 	matrix(unsigned width, unsigned height, float fill_value);
