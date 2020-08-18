@@ -21,6 +21,103 @@ void write_var(std::basic_ostream<_Elem>& stream, T var)
 	stream.write(reinterpret_cast<const _Elem*>(&var), sizeof(T));
 }
 
+bool is_little_endian()
+{
+	static uint16_t value = 0x1;
+	static uint8_t* value_ptr = (uint8_t*)&value;
+	static bool little_endian = value_ptr[0] == 0x1;
+	return little_endian;
+}
+
+void swap_byte_order(char* value, size_t size)
+{
+	char* end = value + size - 1;
+	while (value < end)
+	{
+		char tmp = *value;
+		*value = *end;
+		*end = tmp;
+		value++;
+		end--;
+	}
+}
+
+class binary_data
+{
+	char* data = nullptr;
+	unsigned long long size = 0;
+public:
+	binary_data() {}
+	binary_data(unsigned long long size) : size(size)
+	{
+		assert(size > 0);
+		data = new char[size];
+	}
+	binary_data(binary_data&& bd) noexcept
+	{
+		size = bd.size;
+		data = bd.data;
+		bd.data = nullptr;
+		bd.size = 0;
+	}
+	binary_data(const binary_data& bd)
+	{
+		size = bd.size;
+		if (size > 0)
+		{
+			data = new char[size];
+			memcpy(data, bd.data, size);
+		}
+	}
+	~binary_data()
+	{
+		if (data) delete[] data;
+	}
+
+	binary_data& operator=(const binary_data& bd)
+	{
+		if (data) delete[] data;
+		size = bd.size;
+		if (size > 0)
+		{
+			data = new char[size];
+			memcpy(data, bd.data, size);
+		}
+		return *this;
+	}
+	binary_data& operator=(binary_data&& bd) noexcept
+	{
+		if (data) delete[] data;
+		size = bd.size;
+		data = bd.data;
+		bd.data = nullptr;
+		bd.size = 0;
+		return *this;
+	}
+	char* get_data() const
+	{
+		return data;
+	}
+	unsigned long long get_size() const
+	{
+		return size;
+	}
+};
+
+binary_data read_file(const char* file_name)
+{
+	std::ifstream f(file_name, std::ios::binary | std::ios::ate);
+	if (!f.is_open())
+	{
+		return binary_data();
+	}
+	std::streampos size = f.tellg();
+	f.seekg(0, std::ios::beg);
+	binary_data data(size);
+	f.read(reinterpret_cast<char*>(data.get_data()), size);
+	return data;
+}
+
 struct neural_net
 {
 	struct layer
@@ -29,10 +126,7 @@ struct neural_net
 		matrix weights;
 		matrix biases;
 
-		layer(unsigned size, unsigned prev_layer_size) : size(size), biases(size, 1, 0.f), weights(size, prev_layer_size, 0.f) 
-		{ 
-			init(); 
-		}
+		layer(unsigned size, unsigned prev_layer_size) : size(size), biases(size, 1, 0.f), weights(size, prev_layer_size, 0.f) {}
 		void init()
 		{
 			for (unsigned i = 0; i < size; i++)
@@ -63,6 +157,7 @@ struct neural_net
 		for (unsigned i = 1; i < num_layers; i++)
 		{
 			layers.emplace_back(layer_sizes[i], layer_sizes[i - 1]);
+			layers.back().init();
 		}
 	}
 
@@ -167,7 +262,9 @@ struct neural_net
 		std::ofstream f(file_name, std::ios::binary | std::ios::trunc);
 		if (!f.is_open()) return false;
 		//Magic number
-		write_var(f, 0x230298);
+		write_var(f, 0x00230298u);
+		//Is little endian
+		write_var(f, is_little_endian());
 		//Number of layers
 		write_var(f, unsigned(layers.size() + 1));
 		//Input layer size
@@ -184,6 +281,60 @@ struct neural_net
 			//Biases
 			f.write(reinterpret_cast<const char*>(l.biases.get_data()),
 					(uint64_t)l.biases.get_width() * sizeof(float));
+		}
+
+		return true;
+	}
+
+	bool load_from_file(const char* const file_name)
+	{
+		binary_data net_data = read_file(file_name);
+
+		if (!net_data.get_data()) return false;
+		char* file_pointer = net_data.get_data();
+
+		//Magic number
+		const unsigned magic_number = *reinterpret_cast<unsigned*>(file_pointer);
+		file_pointer += sizeof(unsigned);
+
+		if (magic_number != 0x00230298u && magic_number != 0x98022300u)
+			return false;
+
+		const bool little_endian = *reinterpret_cast<bool*>(file_pointer);
+		file_pointer += sizeof(bool);
+
+		//If endianness doesn't match
+		if (little_endian != is_little_endian())
+		{
+			assert((net_data.get_data() + net_data.get_size() - file_pointer)%4 == 0);
+			for (char* i = file_pointer; i < net_data.get_data() + net_data.get_size(); i += 4)
+			{
+				swap_byte_order(i, 4);
+			}
+		}
+
+		const unsigned num_layers = *reinterpret_cast<unsigned*>(file_pointer);
+		file_pointer += 4;
+
+		const unsigned* layers_sizes = reinterpret_cast<unsigned*>(file_pointer);
+		file_pointer += 4*num_layers;
+
+		input_layer_size = layers_sizes[0];
+
+		layers.clear();
+		layers.reserve(num_layers-1);
+
+		for (unsigned i = 1; i < num_layers; i++)
+		{
+			layer &l = layers.emplace_back(layers_sizes[i], layers_sizes[i - 1]);
+
+			const unsigned weights_size = l.weights.get_width() * l.weights.get_height() * sizeof(float);;
+			memcpy(l.weights.get_data(), file_pointer, weights_size);
+			file_pointer += weights_size;
+
+			const unsigned biases_size = l.biases.get_width() * sizeof(float);
+			memcpy(l.biases.get_data(), file_pointer, biases_size);
+			file_pointer += biases_size;
 		}
 
 		return true;
@@ -214,102 +365,6 @@ void print(const matrix& values)
 		}
 		std::cout << '\n';
 	}
-}
-
-class binary_data
-{
-	std::byte* data = nullptr;
-	unsigned long long size = 0;
-public:
-	binary_data() {}
-	binary_data(unsigned long long size) : size(size)
-	{
-		assert(size > 0);
-		data = new std::byte[size];
-	}
-	binary_data(binary_data&& bd) noexcept
-	{		
-		size = bd.size;
-		data = bd.data;
-		bd.data = nullptr;
-		bd.size = 0;
-	}
-	binary_data(const binary_data& bd)
-	{
-		size = bd.size;
-		if (size > 0)
-		{
-			data = new std::byte[size];
-			memcpy(data, bd.data, size);
-		}
-	}
-	~binary_data()
-	{
-		if(data) delete[] data;
-	}
-
-	binary_data& operator=(const binary_data& bd)
-	{
-		if (data) delete[] data;
-		size = bd.size;
-		if (size > 0)
-		{
-			data = new std::byte[size];
-			memcpy(data, bd.data, size);
-		}
-		return *this;
-	}
-	binary_data& operator=(binary_data&& bd) noexcept
-	{
-		if (data) delete[] data;
-		size = bd.size;
-		data = bd.data;
-		bd.data = nullptr;
-		bd.size = 0;
-		return *this;
-	}
-	std::byte* get_data() const
-	{
-		return data;
-	}
-	unsigned long long get_size() const
-	{
-		return size;
-	}
-};
-
-binary_data read_file(const char* file_name)
-{
-	std::ifstream f(file_name, std::ios::binary | std::ios::ate);
-	if (!f.is_open())
-	{
-		return binary_data();
-	}
-	std::streampos size = f.tellg();
-	f.seekg(0, std::ios::beg);
-	binary_data data(size);
-	f.read(reinterpret_cast<char*>(data.get_data()), size);
-	return data;
-}
-
-void swap_byte_order(char* value, size_t size)
-{
-	char* end = value + size - 1;
-	while (value < end)
-	{
-		char tmp = *value;
-		*value = *end;
-		*end = tmp;
-		value++;
-		end--;
-	}
-}
-
-bool is_little_endian()
-{
-	uint16_t value = 0x1;
-	uint8_t* value_ptr = (uint8_t*)&value;
-	return (value_ptr[0] == 0x1);
 }
 
 void digits()
@@ -393,7 +448,7 @@ void digits()
 	{
 		//Input layer
 
-		std::byte* img_start_addr = images.data.get_data() + i * input_layer_size + 16;
+		char* img_start_addr = images.data.get_data() + i * input_layer_size + 16;
 		
 		for (unsigned j = 0; j < input_layer_size; j++)
 		{
@@ -410,7 +465,7 @@ void digits()
 	{
 		//Input layer
 
-		std::byte* img_start_addr = images.data.get_data() + i * input_layer_size + 16;
+		char* img_start_addr = images.data.get_data() + i * input_layer_size + 16;
 
 		for (unsigned j = 0; j < input_layer_size; j++)
 		{
@@ -470,34 +525,38 @@ void simple_example()
 	required_output.at(0, 0) = 1.f;
 	required_output.at(0, 1) = 0.f;
 
-	// Print initial output
+	//Print initial output
 	std::cout << "Initial output:\n";
 	print(net.run(input));
 	std::cout << '\n';
 
-	// Run backpropagation
+	//Run backpropagation
 	for (int i = 0; i < 100; i++)
 	{
 		std::cout << "Iteration #" << i << '\n';
 
 		net.backpropagation(input, required_output, 20.f);
 
-		// Calculate Error
+		//Calculate Error
 		matrix result = net.run(input);
 		matrix delta = required_output - result;
 		float delta_square_sum = (delta * transpose(delta)).at(0, 0);
 
-		// Print results
+		//Print results
 		std::cout << "Error : " << delta_square_sum << '\n';
 		print(result);
 	}
 
-	for (int i = 0; i < 5 && !net.save_to_file("simple_example.bin"); i++);
+	//Test file saving and loading functionality
+	net.save_to_file("simple_example.bin");
+	net.load_from_file("simple_example.bin");
+	print(net.run(input));
 }
 
 int main()
 {
-	//simple_example();
+	simple_example();
 	digits();
+	
 	return 0;
 }
