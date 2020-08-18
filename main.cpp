@@ -15,6 +15,12 @@ float random_float(float min, float max)
 	return dis(g1);
 }
 
+template<typename _Elem, typename T>
+void write_var(std::basic_ostream<_Elem>& stream, T var)
+{
+	stream.write(reinterpret_cast<const _Elem*>(&var), sizeof(T));
+}
+
 struct neural_net
 {
 	struct layer
@@ -155,6 +161,33 @@ struct neural_net
 			layers[i - 1].weights = layers[i - 1].weights - weights_derivatives * rate; // Calculate new weights
 		}
 	}
+
+	bool save_to_file(const char* const file_name)
+	{
+		std::ofstream f(file_name, std::ios::binary | std::ios::trunc);
+		if (!f.is_open()) return false;
+		//Magic number
+		write_var(f, 0x230298);
+		//Number of layers
+		write_var(f, unsigned(layers.size() + 1));
+		//Input layer size
+		write_var(f, input_layer_size);
+		//Other layers sizes
+		for (const layer& l : layers)
+			write_var(f, l.size);
+		//Weights and biases
+		for (const layer& l : layers)
+		{
+			//Weights
+			f.write(reinterpret_cast<const char*>(l.weights.get_data()),
+					(uint64_t)l.weights.get_width()*l.weights.get_height()*sizeof(float));
+			//Biases
+			f.write(reinterpret_cast<const char*>(l.biases.get_data()),
+					(uint64_t)l.biases.get_width() * sizeof(float));
+		}
+
+		return true;
+	}
 };
 
 float calculate_error(matrix values, matrix required_values)
@@ -179,7 +212,7 @@ void print(const matrix& values)
 		{
 			std::cout << values.at(j, i) << " ";
 		}
-		std::cout << std::endl;
+		std::cout << '\n';
 	}
 }
 
@@ -287,17 +320,19 @@ void digits()
 	{
 		binary_data data;
 		int32_t magic_number;
-		int32_t num_of_items;
+		int32_t items_num;
 	} labels;
 	struct
 	{
 		binary_data data;
 		int32_t magic_number;
-		int32_t num_of_items;
+		int32_t items_num;
 		int32_t num_of_rows;
 		int32_t num_of_columns;
 		
 	} images;
+
+	std::cout << "Loading data into memory...\n";
 
 	//Data source is http://yann.lecun.com/exdb/mnist/
 	labels.data = read_file("train-labels.idx1-ubyte");
@@ -309,20 +344,22 @@ void digits()
 		return;
 	}
 
+	std::cout << "Processing data...\n";
+
 	labels.magic_number = *(int32_t*)labels.data.get_data();
-	labels.num_of_items = *(int32_t*)(labels.data.get_data() + 4);
+	labels.items_num = *(int32_t*)(labels.data.get_data() + 4);
 
 	images.magic_number = *(int32_t*)images.data.get_data();
-	images.num_of_items = *(int32_t*)(images.data.get_data() + 4);
+	images.items_num = *(int32_t*)(images.data.get_data() + 4);
 	images.num_of_rows = *(int32_t*)(images.data.get_data() + 8);
 	images.num_of_columns = *(int32_t*)(images.data.get_data() + 12);
 
 	if (is_little_endian())
 	{
 		swap_byte_order((char*)&labels.magic_number, sizeof(int32_t));
-		swap_byte_order((char*)&labels.num_of_items, sizeof(int32_t));
+		swap_byte_order((char*)&labels.items_num, sizeof(int32_t));
 		swap_byte_order((char*)&images.magic_number, sizeof(int32_t));
-		swap_byte_order((char*)&images.num_of_items, sizeof(int32_t));
+		swap_byte_order((char*)&images.items_num, sizeof(int32_t));
 		swap_byte_order((char*)&images.num_of_rows, sizeof(int32_t));
 		swap_byte_order((char*)&images.num_of_columns, sizeof(int32_t));
 	}
@@ -333,28 +370,25 @@ void digits()
 		return;
 	}
 
-	if (labels.num_of_items != images.num_of_items)
+	if (labels.items_num != images.items_num)
 	{
 		std::cout << "ERROR: data sizes don't match\n";
 		return;
 	}
 
-	//Prepare data
-
 	const unsigned input_layer_size = images.num_of_rows * images.num_of_columns;
-	const unsigned items_num = 10000; //Limit the number of items for faster training
+	const unsigned items_num = images.items_num;
+	const unsigned items_num_test = 100;
 
 	matrix input(input_layer_size, items_num);
-
 	matrix required_output(10, items_num, 0.f);
 
-	matrix input_test(input_layer_size, 100);
-
-	matrix required_output_test(10, 100, 0.f);
+	matrix input_test(input_layer_size, items_num_test);
+	matrix required_output_test(10, items_num_test, 0.f);
 
 	const float mul = 1.f / 255;
 
-	//Train data
+	//Init train data
 	for (int32_t i = 0; i < items_num; i++)
 	{
 		//Input layer
@@ -371,12 +405,12 @@ void digits()
 		required_output.at(i, *reinterpret_cast<uint8_t*>(labels.data.get_data() + i + 8)) = 1.f;
 	}
 
-	// Test data
-	for (int32_t i = 0; i < 100; i++)
+	//Init test data
+	for (int32_t i = 0; i < items_num_test; i++)
 	{
 		//Input layer
 
-		std::byte* img_start_addr = images.data.get_data() + (i + items_num) * input_layer_size + 16;
+		std::byte* img_start_addr = images.data.get_data() + i * input_layer_size + 16;
 
 		for (unsigned j = 0; j < input_layer_size; j++)
 		{
@@ -385,29 +419,39 @@ void digits()
 
 		//Output layer
 
-		required_output_test.at(i, *reinterpret_cast<uint8_t*>(labels.data.get_data() + items_num + i + 8)) = 1.f;
+		required_output_test.at(i, *reinterpret_cast<uint8_t*>(labels.data.get_data() + i + 8)) = 1.f;
 	}
 
 	const unsigned num_layers = 4;
 	const unsigned layer_sizes[num_layers] = {input_layer_size, 16, 16, 10};
 	neural_net net(num_layers, layer_sizes);
 
-	for (int i = 0; i < 1000; i++)
-	{
-		std::cout << "Iteration #" << i << std::endl;
-		net.backpropagation(input, required_output, 10.f/items_num);
+	float error = calculate_error(net.run(input_test), required_output_test);
+	unsigned iter = 0;
 
-		std::cout << calculate_error(net.run(input_test), required_output_test) << std::endl;
+	std::cout << "Training...\n";
+
+	while(error > 0.01f)
+	{
+		iter++;
+		std::cout << "Iteration #" << iter << '\n';
+
+		net.backpropagation(input, required_output, 0.0001f);
+		error = calculate_error(net.run(input_test), required_output_test);
+		std::cout << "Error: " << error << '\n';
 	}
 
 	std::cout << "TEST:\n";
 
 	matrix result = net.run(input_test);
-	print(result);
-	std::cout << std::endl;
-	print(required_output_test);
+	error = calculate_error(result, required_output_test);
 
-	std::cout << calculate_error(result, required_output_test) << std::endl;
+	print(result);
+	std::cout << '\n';
+	print(required_output_test);
+	std::cout << "Error: " << error << '\n';
+
+	for (int i = 0; i < 5 && !net.save_to_file("digits_net.bin"); i++);
 }
 
 void simple_example()
@@ -415,7 +459,7 @@ void simple_example()
 	const unsigned num_layers = 4;
 	const unsigned layer_sizes[num_layers] = { 3, 4, 3, 2 };
 
-	neural_net test(num_layers, layer_sizes);
+	neural_net net(num_layers, layer_sizes);
 
 	matrix input(3, 1);
 	input.at(0, 0) = 0.5f;
@@ -427,31 +471,33 @@ void simple_example()
 	required_output.at(0, 1) = 0.f;
 
 	// Print initial output
-	std::cout << "Initial output:" << std::endl;
-	print(test.run(input));
-	std::cout << std::endl;
+	std::cout << "Initial output:\n";
+	print(net.run(input));
+	std::cout << '\n';
 
 	// Run backpropagation
 	for (int i = 0; i < 100; i++)
 	{
-		test.backpropagation(input, required_output, 0.02f);
+		std::cout << "Iteration #" << i << '\n';
+
+		net.backpropagation(input, required_output, 20.f);
+
+		// Calculate Error
+		matrix result = net.run(input);
+		matrix delta = required_output - result;
+		float delta_square_sum = (delta * transpose(delta)).at(0, 0);
+
+		// Print results
+		std::cout << "Error : " << delta_square_sum << '\n';
+		print(result);
 	}
 
-	// Calculate Sum of square deltas
-	matrix result = test.run(input);
-	matrix delta = required_output - result;
-	float delta_square_sum = (delta * transpose(delta)).at(0, 0);
-
-	// Print results
-	std::cout << "Num iterations: " << 10 << std::endl;
-	std::cout << "Sum of squared deltas : " << delta_square_sum << std::endl;
-	print(result);
+	for (int i = 0; i < 5 && !net.save_to_file("simple_example.bin"); i++);
 }
 
 int main()
 {
 	//simple_example();
 	digits();
-
 	return 0;
 }

@@ -65,6 +65,16 @@ public:
 	}
 
 	matrix get_submatrix(unsigned row_a, unsigned column_a, unsigned row_b, unsigned column_b) const;
+
+	float* get_data()
+	{
+		return values;
+	}
+
+	const float* get_data() const
+	{
+		return values;
+	}
 };
 
 matrix hadamard_product(const matrix& a, const matrix& b);
