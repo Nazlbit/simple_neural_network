@@ -15,6 +15,48 @@ void print(const matrix& values)
 	}
 }
 
+void print_image(const float* data, unsigned width, unsigned height)
+{
+	for (unsigned i = 0; i < height; i++)
+	{
+		for (unsigned j = 0; j < width; j++)
+		{
+			if (data[i * width + j] > 0.5)
+			{
+				std::cout << (char)178 << ' ';
+			}
+			else
+			{
+				std::cout << "  ";
+			}
+		}
+		std::cout << '\n';
+	}
+}
+
+float calculate_error(const matrix& output, const matrix& required_output)
+{
+	assert(output.get_height() == required_output.get_height());
+	assert(output.get_width() == required_output.get_width());
+
+	float error = 0;
+
+	for (unsigned j = 0; j < output.get_height(); j++)
+	{
+		unsigned top = 0;
+		unsigned required_top = 0;
+		for (unsigned k = 1; k < output.get_width(); k++)
+		{
+			if (output.at(j, top) < output.at(j, k)) top = k;
+			if (required_output.at(j, required_top) < required_output.at(j, k)) required_top = k;
+		}
+		if (top != required_top)
+			error++;
+	}
+	error /= output.get_height();
+	return error;
+}
+
 void digits()
 {
 	//Load data
@@ -81,7 +123,7 @@ void digits()
 
 	const unsigned input_layer_size = images.num_of_rows * images.num_of_columns;
 	const unsigned items_num = images.items_num;
-	const unsigned batch_size = 100;
+	const unsigned batch_size = 20;
 	const unsigned num_batches = items_num / batch_size;
 
 	std::vector<matrix> input(num_batches);
@@ -89,7 +131,7 @@ void digits()
 
 	const float mul = 1.f / 255;
 
-	//Init train data
+	//Init training data
 	for (unsigned i = 0; i < num_batches; i++)
 	{
 		input[i] = matrix(input_layer_size, batch_size);
@@ -107,26 +149,60 @@ void digits()
 		}
 	}
 
+	//Construct neural network
 	const unsigned num_layers = 4;
-	const unsigned layer_sizes[num_layers] = {input_layer_size, 16, 16, 10};
+	const unsigned layer_sizes[num_layers] = {input_layer_size, 40, 20, 10};
 	neural_net net(num_layers, layer_sizes);
 
-	float error = neural_net::calculate_error(net.run(input[0]), required_output[0]);
-	unsigned iter = 0;
 
+	//Start training
+	unsigned iter = 0;
+	const unsigned num_test_batches = 1;
+	
 	std::cout << "Training...\n";
 
-	while(error > 0.06f)
+	for (unsigned h = 0; h < 400; h++)
 	{
-		iter++;
+		for (unsigned i = 0; i < 200; i++)
+		{
+			iter++;
+			const unsigned batch_index = iter % (num_batches - num_test_batches);
+			net.backpropagation(input[batch_index], required_output[batch_index], 0.005f);
+		}
+		
+		net.save_to_file("digits_net.bin");
+
+		//Calculate error
+		const unsigned num_error_test_batches = 10;
+		float error = 0;
+		for (int i = 0; i < num_error_test_batches; i++)
+		{
+			int index = random_int(0, num_batches - 1 - num_error_test_batches);
+			error += calculate_error(net.run(input[index]), required_output[index]);
+		}
+		error /= num_error_test_batches;
+
 		std::cout << "Iteration #" << iter << '\n';
-
-		const unsigned batch_index = (iter - 1) % num_batches;
-		net.backpropagation(input[batch_index], required_output[batch_index], 0.1f);
-		error = neural_net::calculate_error(net.run(input[0]), required_output[0]);
 		std::cout << "Error: " << error << '\n';
+	}
 
-		if(iter%100 == 0) net.save_to_file("digits_net.bin");
+	// Print results
+	for (unsigned i = num_batches - 1 - num_test_batches; i < num_batches; i++)
+	{
+		matrix output = net.run(input[i]);
+
+		//For every image print the result
+		for (unsigned j = 0; j < batch_size; j++)
+		{
+			print_image(input[i].get_data() + j * input_layer_size, images.num_of_columns, images.num_of_rows);
+			print(submatrix(required_output[i], j, j + 1, 0, required_output[i].get_width()));
+
+			matrix normalized_output = submatrix(output, j, j + 1, 0, output.get_width());
+			normalized_output = normalized_output / (normalized_output * matrix(1, normalized_output.get_width(), 1.f)).at(0);
+			print(normalized_output);
+
+			system("pause");
+		}
 	}
 }
 
@@ -179,6 +255,5 @@ int main()
 {
 	//simple_example();
 	digits();
-	
 	return 0;
 }
