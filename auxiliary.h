@@ -4,6 +4,7 @@
 #include "binary_data.h"
 
 float random_float(float min, float max);
+int	random_int(int min, int max);
 
 bool is_little_endian();
 

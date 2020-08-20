@@ -4,10 +4,17 @@
 
 #include "auxiliary.h"
 
+static std::mt19937_64 g1(std::chrono::system_clock::now().time_since_epoch().count());
+
 float random_float(float min, float max)
 {
-	static std::mt19937_64 g1(std::chrono::system_clock::now().time_since_epoch().count());
 	std::uniform_real_distribution<float> dis(min, max);
+	return dis(g1);
+}
+
+int	random_int(int min, int max)
+{
+	std::uniform_int_distribution<int> dis(min, max);
 	return dis(g1);
 }
 
