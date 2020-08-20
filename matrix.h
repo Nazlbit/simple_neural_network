@@ -44,29 +44,27 @@ public:
 	{
 		assert(row < height);
 		assert(column < width);
-		return values[column * height + row];
+		return values[row * width + column];
 	}
 
 	const float& at(unsigned row, unsigned column) const
 	{
 		assert(row < height);
 		assert(column < width);
-		return values[column * height + row];
+		return values[row * width + column];
 	}
 
 	float& at(unsigned index)
 	{
-		assert(index < height* width);
+		assert(index < height * width);
 		return values[index];
 	}
 
 	const float& at(unsigned index) const
 	{
-		assert(index < height* width);
+		assert(index < height * width);
 		return values[index];
 	}
-
-	matrix get_submatrix(unsigned row_a, unsigned column_a, unsigned row_b, unsigned column_b) const;
 
 	float* get_data()
 	{
@@ -79,11 +77,15 @@ public:
 	}
 };
 
+// Functions that generate another matrix and do not modify the original matrix should be outside of the class
+
 matrix hadamard_product(const matrix& a, const matrix& b);
 
 matrix operator*(const matrix& a, const matrix& b);
 
 matrix operator*(const matrix& m, float v);
+
+matrix operator/(const matrix& m, float v);
 
 matrix operator+(const matrix& a, const matrix& b);
 
@@ -100,3 +102,5 @@ matrix operator-(float v, const matrix& m);
 matrix operator-(const matrix& m, float v);
 
 matrix transpose(const matrix& m);
+
+matrix submatrix(const matrix& m, unsigned row_a, unsigned row_b, unsigned column_a, unsigned column_b);
