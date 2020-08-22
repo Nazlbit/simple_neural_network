@@ -76,6 +76,33 @@ matrix& matrix::operator=(matrix&& m) noexcept
 	return *this;
 }
 
+matrix matrix::submatrix(unsigned row_a, unsigned row_b, unsigned column_a, unsigned column_b) const
+{
+	assert(row_a < row_b);
+	assert(column_a < column_b);
+
+	matrix result(column_b - column_a, row_b - row_a);
+	for (int i = row_a; i < row_b; i++)
+	{
+		for (unsigned j = column_a; j < column_b; j++)
+		{
+			result.at(i - row_a, j - column_a) = at(i, j);
+		}
+	}
+	return result;
+}
+
+matrix matrix::submatrix(unsigned row_a, unsigned row_b) const
+{
+	assert(row_a < row_b);
+
+	const unsigned new_height = row_b - row_a;
+
+	matrix result(width, new_height);
+	memcpy(result.get_data(), values + row_a * width, new_height * width * sizeof(float));
+	return result;
+}
+
 matrix submatrix(const matrix& m, unsigned row_a, unsigned row_b, unsigned column_a, unsigned column_b)
 {
 	assert(row_a < row_b);
@@ -263,6 +290,23 @@ matrix transpose(const matrix& m)
 		for (unsigned j = 0; j < result.get_width(); j++)
 		{
 			result.at(i, j) = m.at(j, i);
+		}
+	}
+
+	return result;
+}
+
+matrix matrix::transpose() const
+{
+	assert(is_alive());
+
+	matrix result(get_height(), get_width());
+
+	for (unsigned i = 0; i < result.get_height(); i++)
+	{
+		for (unsigned j = 0; j < result.get_width(); j++)
+		{
+			result.at(i, j) = at(j, i);
 		}
 	}
 

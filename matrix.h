@@ -1,15 +1,18 @@
 #pragma once
 #include <cassert>
 
+class matrix;
+
 class matrix
 {
 private:
 	float* values;
 	unsigned width;
 	unsigned height;
+	bool view;
 
 public:
-	matrix() : values(nullptr), width(0), height(0) {}
+	matrix() : values(nullptr), width(0), height(0), view(false) {}
 
 	matrix(unsigned width, unsigned height);
 
@@ -75,6 +78,12 @@ public:
 	{
 		return values;
 	}
+
+	matrix submatrix(unsigned row_a, unsigned row_b, unsigned column_a, unsigned column_b) const;
+
+	matrix submatrix(unsigned row_a, unsigned row_b) const;
+
+	matrix transpose() const;
 };
 
 // Functions that generate another matrix and do not modify the original matrix should be outside of the class
