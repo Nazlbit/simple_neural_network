@@ -1,4 +1,5 @@
 #include <iostream>
+#include <chrono>
 
 #include "neural_net.h"
 #include "auxiliary.h"
@@ -122,31 +123,23 @@ void digits()
 	}
 
 	const unsigned input_layer_size = images.num_of_rows * images.num_of_columns;
-	const unsigned items_num = images.items_num;
-	const unsigned batch_size = 20;
-	const unsigned num_batches = items_num / batch_size;
+	const unsigned samples_num = images.items_num;
 
-	std::vector<matrix> input(num_batches);
-	std::vector<matrix> required_output(num_batches);
+	matrix input(input_layer_size, samples_num);
+	matrix required_output(10, samples_num);
 
 	const float mul = 1.f / 255;
 
 	//Init training data
-	for (unsigned i = 0; i < num_batches; i++)
+	for (unsigned j = 0; j < samples_num; j++)
 	{
-		input[i] = matrix(input_layer_size, batch_size);
-		required_output[i] = matrix(10, batch_size, 0.f);
-
-		for (unsigned j = 0; j < batch_size; j++)
+		for (unsigned k = 0; k < input_layer_size; k++)
 		{
-			for (unsigned k = 0; k < input_layer_size; k++)
-			{
-				const char* pixel_addr = images.data.get_data() + 16 + input_layer_size * (i * batch_size + j) + k;
-				input[i].at(j, k) = *reinterpret_cast<const uint8_t*>(pixel_addr) * mul;
-			}
-			const char* label_addr = labels.data.get_data() + 8 + batch_size * i + j;
-			required_output[i].at(j, *reinterpret_cast<const uint8_t*>(label_addr)) = 1.f;
+			const char* pixel_addr = images.data.get_data() + 16 + input_layer_size * j + k;
+			input.at(j, k) = *reinterpret_cast<const uint8_t*>(pixel_addr) * mul;
 		}
+		const char* label_addr = labels.data.get_data() + 8 + j;
+		required_output.at(j, *reinterpret_cast<const uint8_t*>(label_addr)) = 1.f;
 	}
 
 	//Construct neural network
@@ -156,53 +149,40 @@ void digits()
 
 
 	//Start training
-	unsigned iter = 0;
-	const unsigned num_test_batches = 1;
-	
 	std::cout << "Training...\n";
 
-	for (unsigned h = 0; h < 400; h++)
+	for (unsigned h = 0; h < 100; h++)
 	{
-		for (unsigned i = 0; i < 200; i++)
-		{
-			iter++;
-			const unsigned batch_index = iter % (num_batches - num_test_batches);
-			net.backpropagation(input[batch_index], required_output[batch_index], 0.005f);
-		}
+		net.train_stochastic(input, required_output, 1000, 0.1);
 		
 		net.save_to_file("digits_net.bin");
 
 		//Calculate error
-		const unsigned num_error_test_batches = 10;
-		float error = 0;
-		for (int i = 0; i < num_error_test_batches; i++)
-		{
-			int index = random_int(0, num_batches - 1 - num_error_test_batches);
-			error += calculate_error(net.run(input[index]), required_output[index]);
-		}
-		error /= num_error_test_batches;
+		const unsigned num_test_samples = 100;
+		unsigned sample_beg = random_int(0, samples_num - 1 - num_test_samples);
+		float error = calculate_error(net.run(input.submatrix(sample_beg, sample_beg + num_test_samples)), required_output.submatrix(sample_beg, sample_beg + num_test_samples));
 
-		std::cout << "Iteration #" << iter << '\n';
+		std::cout << "Iteration #" << h*1000 << '\n';
 		std::cout << "Error: " << error << '\n';
 	}
 
 	// Print results
-	for (unsigned i = num_batches - 1 - num_test_batches; i < num_batches; i++)
+	const unsigned num_test_samples = 50;
+	matrix test_input = input.submatrix(0, num_test_samples);
+	matrix test_required_output = required_output.submatrix(0, num_test_samples);
+	matrix output = net.run(test_input);
+
+	//For every image print the result
+	for (unsigned j = 0; j < num_test_samples; j++)
 	{
-		matrix output = net.run(input[i]);
+		print_image(test_input.get_data() + j * input_layer_size, images.num_of_columns, images.num_of_rows);
+		print(submatrix(test_required_output, j, j + 1, 0, test_required_output.get_width()));
 
-		//For every image print the result
-		for (unsigned j = 0; j < batch_size; j++)
-		{
-			print_image(input[i].get_data() + j * input_layer_size, images.num_of_columns, images.num_of_rows);
-			print(submatrix(required_output[i], j, j + 1, 0, required_output[i].get_width()));
+		matrix normalized_output = submatrix(output, j, j + 1, 0, output.get_width());
+		normalized_output = normalized_output / (normalized_output * matrix(1, normalized_output.get_width(), 1.f)).at(0);
+		print(normalized_output);
 
-			matrix normalized_output = submatrix(output, j, j + 1, 0, output.get_width());
-			normalized_output = normalized_output / (normalized_output * matrix(1, normalized_output.get_width(), 1.f)).at(0);
-			print(normalized_output);
-
-			system("pause");
-		}
+		system("pause");
 	}
 }
 
@@ -255,5 +235,6 @@ int main()
 {
 	//simple_example();
 	digits();
+
 	return 0;
 }
