@@ -6,13 +6,21 @@
 
 class neural_net
 {
+public:
+	enum class optimization_method
+	{
+		none, momentum
+	};
+
+private:
 	struct layer
 	{
 		const unsigned size;
 		matrix weights;
 		matrix biases;
 
-		layer(unsigned size, unsigned prev_layer_size) : size(size), biases(size, 1, 0.f), weights(size, prev_layer_size, 0.f) {}
+		layer(unsigned size, unsigned prev_layer_size) : size(size), weights(size, prev_layer_size), biases(size, 1) {}
+		layer(unsigned size, unsigned prev_layer_size, float init_val) : size(size), weights(size, prev_layer_size, init_val), biases(size, 1, init_val) {}
 		void init();
 	};
 
@@ -20,14 +28,22 @@ class neural_net
 	unsigned input_layer_size;
 
 public:
+
 	neural_net(const unsigned num_layers, const unsigned* const layer_sizes);
 	neural_net(const char* const file_name);
 
-	matrix run(const matrix& input) const;
+	matrix run(matrix input) const;
 
-	std::vector<matrix> run_ext_output(const matrix& input) const;
+	std::vector<matrix> run_ext_output(matrix input) const;
 
+	std::vector<std::pair<matrix, matrix>> backpropagation(const matrix& input, const matrix& required_output);
 	void backpropagation(const matrix& input, const matrix& required_output, float rate);
+
+	void train_batch(const matrix& input, const matrix& required_output, unsigned iter_num, float rate);
+
+	void train_stochastic(const matrix& input, const matrix& required_output, unsigned iter_num, float rate);
+
+	void train_mini_batch(const std::vector<matrix>& input, const std::vector<matrix>& required_output, unsigned iter_num, float rate);
 
 	bool save_to_file(const char* const file_name);
 
