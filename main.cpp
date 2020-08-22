@@ -124,61 +124,72 @@ void digits()
 
 	const unsigned input_layer_size = images.num_of_rows * images.num_of_columns;
 	const unsigned samples_num = images.items_num;
+	const unsigned train_samples_num = 100;
 
-	matrix input(input_layer_size, samples_num);
-	matrix required_output(10, samples_num);
+	matrix train_input(input_layer_size, samples_num);
+	matrix train_required_output(10, samples_num, 0.f);
+	matrix test_input(input_layer_size, train_samples_num);
+	matrix test_required_output(10, train_samples_num, 0.f);
 
 	const float mul = 1.f / 255;
 
+
 	//Init training data
-	for (unsigned j = 0; j < samples_num; j++)
+	for (unsigned j = 0; j < samples_num - train_samples_num; j++)
 	{
 		for (unsigned k = 0; k < input_layer_size; k++)
 		{
 			const char* pixel_addr = images.data.get_data() + 16 + input_layer_size * j + k;
-			input.at(j, k) = *reinterpret_cast<const uint8_t*>(pixel_addr) * mul;
+			train_input.at(j, k) = *reinterpret_cast<const uint8_t*>(pixel_addr) * mul;
 		}
 		const char* label_addr = labels.data.get_data() + 8 + j;
-		required_output.at(j, *reinterpret_cast<const uint8_t*>(label_addr)) = 1.f;
+		train_required_output.at(j, *reinterpret_cast<const uint8_t*>(label_addr)) = 1.f;
+	}
+	//Init testing data
+	for (unsigned j = 0; j < train_samples_num; j++)
+	{
+		for (unsigned k = 0; k < input_layer_size; k++)
+		{
+			const char* pixel_addr = images.data.get_data() + 16 + input_layer_size * (j + samples_num - train_samples_num) + k;
+			test_input.at(j, k) = *reinterpret_cast<const uint8_t*>(pixel_addr) * mul;
+		}
+		const char* label_addr = labels.data.get_data() + 8 + j + samples_num - train_samples_num;
+		test_required_output.at(j, *reinterpret_cast<const uint8_t*>(label_addr)) = 1.f;
 	}
 
 	//Construct neural network
 	const unsigned num_layers = 4;
-	const unsigned layer_sizes[num_layers] = {input_layer_size, 40, 20, 10};
+	const unsigned layer_sizes[num_layers] = {input_layer_size, 80, 40, 10};
 	neural_net net(num_layers, layer_sizes);
 
 
 	//Start training
 	std::cout << "Training...\n";
 
+	const float rate = 0.1f;
 	for (unsigned h = 0; h < 100; h++)
 	{
-		net.train_stochastic(input, required_output, 1000, 0.1);
+		net.train_stochastic(train_input, train_required_output, 2000, rate);
 		
 		net.save_to_file("digits_net.bin");
 
 		//Calculate error
-		const unsigned num_test_samples = 100;
-		unsigned sample_beg = random_int(0, samples_num - 1 - num_test_samples);
-		float error = calculate_error(net.run(input.submatrix(sample_beg, sample_beg + num_test_samples)), required_output.submatrix(sample_beg, sample_beg + num_test_samples));
+		float error = calculate_error(net.run(test_input), test_required_output);
 
-		std::cout << "Iteration #" << h*1000 << '\n';
+		std::cout << "Iteration #" << h*2000 << '\n';
 		std::cout << "Error: " << error << '\n';
 	}
 
 	// Print results
-	const unsigned num_test_samples = 50;
-	matrix test_input = input.submatrix(0, num_test_samples);
-	matrix test_required_output = required_output.submatrix(0, num_test_samples);
-	matrix output = net.run(test_input);
+	matrix test_output = net.run(test_input);
 
 	//For every image print the result
-	for (unsigned j = 0; j < num_test_samples; j++)
+	for (unsigned j = 0; j < train_samples_num; j++)
 	{
 		print_image(test_input.get_data() + j * input_layer_size, images.num_of_columns, images.num_of_rows);
-		print(submatrix(test_required_output, j, j + 1, 0, test_required_output.get_width()));
+		print(test_required_output.submatrix(j, j + 1));
 
-		matrix normalized_output = submatrix(output, j, j + 1, 0, output.get_width());
+		matrix normalized_output = test_output.submatrix(j, j + 1);
 		normalized_output = normalized_output / (normalized_output * matrix(1, normalized_output.get_width(), 1.f)).at(0);
 		print(normalized_output);
 
