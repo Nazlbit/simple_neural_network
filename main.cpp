@@ -123,19 +123,19 @@ void digits()
 	}
 
 	const unsigned input_layer_size = images.num_of_rows * images.num_of_columns;
-	const unsigned samples_num = images.items_num;
-	const unsigned train_samples_num = 100;
+	const unsigned test_samples_num = 100;
+	const unsigned train_samples_num = images.items_num - test_samples_num;
 
-	matrix train_input(input_layer_size, samples_num);
-	matrix train_required_output(10, samples_num, 0.f);
-	matrix test_input(input_layer_size, train_samples_num);
-	matrix test_required_output(10, train_samples_num, 0.f);
+	matrix train_input(input_layer_size, train_samples_num);
+	matrix train_required_output(10, train_samples_num, 0.f);
+	matrix test_input(input_layer_size, test_samples_num);
+	matrix test_required_output(10, test_samples_num, 0.f);
 
 	const float mul = 1.f / 255;
 
 
 	//Init training data
-	for (unsigned j = 0; j < samples_num - train_samples_num; j++)
+	for (unsigned j = 0; j < train_samples_num; j++)
 	{
 		for (unsigned k = 0; k < input_layer_size; k++)
 		{
@@ -146,14 +146,14 @@ void digits()
 		train_required_output.at(j, *reinterpret_cast<const uint8_t*>(label_addr)) = 1.f;
 	}
 	//Init testing data
-	for (unsigned j = 0; j < train_samples_num; j++)
+	for (unsigned j = 0; j < test_samples_num; j++)
 	{
 		for (unsigned k = 0; k < input_layer_size; k++)
 		{
-			const char* pixel_addr = images.data.get_data() + 16 + input_layer_size * (j + samples_num - train_samples_num) + k;
+			const char* pixel_addr = images.data.get_data() + 16 + input_layer_size * (j + train_samples_num) + k;
 			test_input.at(j, k) = *reinterpret_cast<const uint8_t*>(pixel_addr) * mul;
 		}
-		const char* label_addr = labels.data.get_data() + 8 + j + samples_num - train_samples_num;
+		const char* label_addr = labels.data.get_data() + 8 + j + train_samples_num;
 		test_required_output.at(j, *reinterpret_cast<const uint8_t*>(label_addr)) = 1.f;
 	}
 
@@ -184,7 +184,7 @@ void digits()
 	matrix test_output = net.run(test_input);
 
 	//For every image print the result
-	for (unsigned j = 0; j < train_samples_num; j++)
+	for (unsigned j = 0; j < test_samples_num; j++)
 	{
 		print_image(test_input.get_data() + j * input_layer_size, images.num_of_columns, images.num_of_rows);
 		print(test_required_output.submatrix(j, j + 1));

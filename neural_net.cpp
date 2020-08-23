@@ -147,12 +147,12 @@ void neural_net::train_stochastic(const matrix& input, const matrix& required_ou
 		const unsigned sample_index = random_int(0, num_samples - 1);
 		auto new_gradient = backpropagation(input.submatrix(sample_index, sample_index+1), required_output.submatrix(sample_index, sample_index+1));
 
-		for (unsigned i = 0; i < layers.size(); i++)
+		for (unsigned j = 0; j < layers.size(); j++)
 		{
-			gradient[i].first = gradient[i].first * momentum + new_gradient[i].first * rate;
-			gradient[i].second = gradient[i].second * momentum + new_gradient[i].second * rate;
-			layers[i].weights = layers[i].weights - gradient[i].first;
-			layers[i].biases = layers[i].biases - gradient[i].second;
+			gradient[j].first = gradient[j].first * momentum + new_gradient[j].first * rate;
+			gradient[j].second = gradient[j].second * momentum + new_gradient[j].second * rate;
+			layers[j].weights = layers[j].weights - gradient[j].first;
+			layers[j].biases = layers[j].biases - gradient[j].second;
 		}
 	}
 }
