@@ -166,17 +166,18 @@ void digits()
 	//Start training
 	std::cout << "Training...\n";
 
-	const float rate = 0.1f;
+	const float rate = 0.03f;
+	const unsigned num_iter = 1000;
 	for (unsigned h = 0; h < 100; h++)
 	{
-		net.train_stochastic(train_input, train_required_output, 2000, rate);
+		net.train_stochastic(train_input, train_required_output, num_iter, rate);
 		
 		net.save_to_file("digits_net.bin");
 
 		//Calculate error
 		float error = calculate_error(net.run(test_input), test_required_output);
 
-		std::cout << "Iteration #" << h*2000 << '\n';
+		std::cout << "Iteration #" << h * num_iter << '\n';
 		std::cout << "Error: " << error << '\n';
 	}
 

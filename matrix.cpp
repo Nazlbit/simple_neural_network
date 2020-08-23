@@ -119,6 +119,17 @@ matrix submatrix(const matrix& m, unsigned row_a, unsigned row_b, unsigned colum
 	return result;
 }
 
+matrix sqrt(const matrix& m)
+{
+	matrix result(m.get_width(), m.get_height());
+	for (unsigned i = 0; i < result.get_width() * result.get_height(); i++)
+	{
+		result.at(i) = sqrtf(m.at(i));
+	}
+
+	return result;
+}
+
 matrix hadamard_product(const matrix& a, const matrix& b)
 {
 	assert(a.is_alive() && b.is_alive());
@@ -172,7 +183,7 @@ matrix operator*(const matrix& m, float v)
 	return result;
 }
 
-matrix operator/(const matrix& m, float v)
+matrix operator/(float v, const matrix& m)
 {
 	assert(m.is_alive());
 
@@ -180,7 +191,7 @@ matrix operator/(const matrix& m, float v)
 
 	for (unsigned i = 0; i < result.get_width() * result.get_height(); i++)
 	{
-			result.at(i) = m.at(i) / v;
+		result.at(i) = v / m.at(i);
 	}
 
 	return result;
@@ -232,23 +243,18 @@ matrix operator-(const matrix& m)
 	return result;
 }
 
-matrix operator+(float v, const matrix& m)
+matrix operator+(const matrix& m, float v)
 {
 	assert(m.is_alive());
 
 	matrix result(m.get_width(), m.get_height());
 
-	for (unsigned i = 0; i < result.get_height()* result.get_width(); i++)
+	for (unsigned i = 0; i < result.get_height() * result.get_width(); i++)
 	{
-		result.at(i) = v + m.at(i);
+		result.at(i) = m.at(i) + v;
 	}
 
 	return result;
-}
-
-matrix operator+(const matrix& m, float v)
-{
-	return v + m;
 }
 
 matrix operator-(float v, const matrix& m)
@@ -260,20 +266,6 @@ matrix operator-(float v, const matrix& m)
 	for (unsigned i = 0; i < result.get_height() * result.get_width(); i++)
 	{
 		result.at(i) = v - m.at(i);
-	}
-
-	return result;
-}
-
-matrix operator-(const matrix& m, float v)
-{
-	assert(m.is_alive());
-
-	matrix result(m.get_width(), m.get_height());
-
-	for (unsigned i = 0; i < result.get_height() * result.get_width(); i++)
-	{
-		result.at(i) = m.at(i) - v;
 	}
 
 	return result;

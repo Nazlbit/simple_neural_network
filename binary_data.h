@@ -5,10 +5,10 @@
 class binary_data
 {
 	char* data = nullptr;
-	unsigned long long size = 0;
+	size_t size = 0;
 public:
 	binary_data() {}
-	binary_data(unsigned long long size) : size(size)
+	binary_data(size_t size) : size(size)
 	{
 		assert(size > 0);
 		data = new char[size];

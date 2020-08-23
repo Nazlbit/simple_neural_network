@@ -15,12 +15,16 @@ public:
 private:
 	struct layer
 	{
-		const unsigned size;
+		unsigned size = 0;
+		unsigned prev_layer_size = 0;
 		matrix weights;
 		matrix biases;
 
-		layer(unsigned size, unsigned prev_layer_size) : size(size), weights(size, prev_layer_size), biases(size, 1) {}
-		layer(unsigned size, unsigned prev_layer_size, float init_val) : size(size), weights(size, prev_layer_size, init_val), biases(size, 1, init_val) {}
+		layer() = default;
+		layer(unsigned size, unsigned prev_layer_size) : size(size), prev_layer_size(prev_layer_size), weights(size, prev_layer_size), biases(size, 1) {}
+		layer(unsigned size, unsigned prev_layer_size, float init_val) : size(size), prev_layer_size(prev_layer_size), weights(size, prev_layer_size, init_val), biases(size, 1, init_val) {}
+
+
 		void init();
 	};
 
@@ -36,7 +40,8 @@ public:
 
 	std::vector<matrix> run_ext_output(matrix input) const;
 
-	std::vector<std::pair<matrix, matrix>> backpropagation(const matrix& input, const matrix& required_output);
+	std::vector<layer> backpropagation(const matrix& input, const matrix& required_output);
+
 	void backpropagation(const matrix& input, const matrix& required_output, float rate);
 
 	void train_batch(const matrix& input, const matrix& required_output, unsigned iter_num, float rate);
@@ -68,7 +73,7 @@ public:
 
 	static float relu_derivative(float input)
 	{
-		return input > 0 ? 1 : 0;
+		return input > 0 ? 1.f : 0.f;
 	}
 
 	static matrix activation_function(matrix input);

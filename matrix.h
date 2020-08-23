@@ -94,7 +94,17 @@ matrix operator*(const matrix& a, const matrix& b);
 
 matrix operator*(const matrix& m, float v);
 
-matrix operator/(const matrix& m, float v);
+inline matrix operator*(float v, const matrix& m)
+{
+	return m * v;
+}
+
+inline matrix operator/(const matrix& m, float v)
+{
+	return m * (1.f / v);
+}
+
+matrix operator/(float v, const matrix& m);
 
 matrix operator+(const matrix& a, const matrix& b);
 
@@ -102,14 +112,22 @@ matrix operator-(const matrix& a, const matrix& b);
 
 matrix operator-(const matrix& m);
 
-matrix operator+(float v, const matrix& m);
-
 matrix operator+(const matrix& m, float v);
+
+inline matrix operator+(float v, const matrix& m)
+{
+	return m + v;
+}
 
 matrix operator-(float v, const matrix& m);
 
-matrix operator-(const matrix& m, float v);
+inline matrix operator-(const matrix& m, float v)
+{
+	return m + -v;
+}
 
 matrix transpose(const matrix& m);
 
 matrix submatrix(const matrix& m, unsigned row_a, unsigned row_b, unsigned column_a, unsigned column_b);
+
+matrix sqrt(const matrix& m);

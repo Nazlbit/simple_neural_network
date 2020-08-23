@@ -7,7 +7,7 @@ void neural_net::layer::init()
 	{
 		biases.at(0, i) = random_float(-1.f, 1.f);
 
-		for (unsigned j = 0; j < weights.get_height(); j++)
+		for (unsigned j = 0; j < prev_layer_size; j++)
 		{
 			weights.at(j, i) = random_float(-1.f, 1.f);
 		}
@@ -64,7 +64,7 @@ std::vector<matrix> neural_net::run_ext_output(matrix input) const
 	return result;
 }
 
-std::vector<std::pair<matrix, matrix>> neural_net::backpropagation(const matrix& input, const matrix& required_output)
+std::vector<neural_net::layer> neural_net::backpropagation(const matrix& input, const matrix& required_output)
 {
 	assert(input.is_alive() && required_output.is_alive());
 	assert(input.get_width() == input_layer_size);
@@ -72,15 +72,17 @@ std::vector<std::pair<matrix, matrix>> neural_net::backpropagation(const matrix&
 	assert(required_output.get_height() == input.get_height());
 
 	std::vector<matrix> values = run_ext_output(input); // Calculate initial neurons activation values
-	std::vector<std::pair<matrix, matrix>> gradient(layers.size());
+	std::vector<layer> gradient(layers.size());
 
 	matrix x = values.back() - required_output; // Delta
 
 	for (unsigned i = layers.size(); i > 0; i--) // For every layer starting from the last
 	{
 		x = hadamard_product(x, activation_function_derivative(values[i])); // Activation function derivative
-		gradient[i - 1].first = transpose(values[i - 1]) * x; // Weights partial derivative
-		gradient[i - 1].second = matrix(input.get_height(), 1, 1.f) * x; // Biases partial derivative
+		gradient[i - 1].size = layers[i - 1].size;
+		gradient[i - 1].prev_layer_size = layers[i - 1].prev_layer_size;
+		gradient[i - 1].weights = transpose(values[i - 1]) * x; // Weights partial derivative
+		gradient[i - 1].biases = matrix(input.get_height(), 1, 1.f) * x; // Biases partial derivative
 		x = transpose(layers[i - 1].weights * transpose(x)); // Neuron connection partial derivative
 	}
 
@@ -132,27 +134,21 @@ void neural_net::train_stochastic(const matrix& input, const matrix& required_ou
 
 	const unsigned num_samples = input.get_height();
 
-	const unsigned sample_index = random_int(0, num_samples - 1);
-	auto gradient = backpropagation(input.submatrix(sample_index, sample_index + 1), required_output.submatrix(sample_index, sample_index + 1));
+	static std::vector<layer> grad = backpropagation(input.submatrix(0, 1), required_output.submatrix(0, 1));
 
-	for (unsigned i = 0; i < layers.size(); i++)
-	{
-		layers[i].weights = layers[i].weights - gradient[i].first;
-		layers[i].biases = layers[i].biases - gradient[i].second;
-	}
-
-	const float momentum = 0.6;
-	for (unsigned i = 1; i < iter_num; i++)
+	const float fraction = 0.7f;
+	for (unsigned i = 0; i < iter_num; i++)
 	{
 		const unsigned sample_index = random_int(0, num_samples - 1);
-		auto new_gradient = backpropagation(input.submatrix(sample_index, sample_index+1), required_output.submatrix(sample_index, sample_index+1));
+		auto new_grad = backpropagation(input.submatrix(sample_index, sample_index+1), required_output.submatrix(sample_index, sample_index+1));
 
 		for (unsigned j = 0; j < layers.size(); j++)
 		{
-			gradient[j].first = gradient[j].first * momentum + new_gradient[j].first * rate;
-			gradient[j].second = gradient[j].second * momentum + new_gradient[j].second * rate;
-			layers[j].weights = layers[j].weights - gradient[j].first;
-			layers[j].biases = layers[j].biases - gradient[j].second;
+			grad[j].weights = grad[j].weights * fraction + new_grad[j].weights * rate;
+			grad[j].biases = grad[j].biases * fraction + new_grad[j].biases * rate;
+
+			layers[j].weights = layers[j].weights - grad[j].weights;
+			layers[j].biases = layers[j].biases - grad[j].biases;
 		}
 	}
 }
@@ -259,7 +255,7 @@ float neural_net::calculate_error(matrix values, matrix required_values)
 
 	float delta_sqr_sum = 0;
 	unsigned size = delta.get_height() * delta.get_width();
-	for (int i = 0; i < size; i++)
+	for (unsigned i = 0; i < size; i++)
 	{
 		delta_sqr_sum += delta.at(i) * delta.at(i);
 	}
