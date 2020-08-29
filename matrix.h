@@ -7,16 +7,15 @@ class matrix
 {
 private:
 	float* values;
-	unsigned width;
-	unsigned height;
-	bool view;
+	int width;
+	int height;
 
 public:
-	matrix() : values(nullptr), width(0), height(0), view(false) {}
+	matrix() : values(nullptr), width(0), height(0) {}
 
-	matrix(unsigned width, unsigned height);
+	matrix(int width, int height);
 
-	matrix(unsigned width, unsigned height, float fill_value);
+	matrix(int width, int height, float fill_value);
 
 	matrix(const matrix& m);
 
@@ -28,12 +27,12 @@ public:
 
 	matrix& operator=(matrix&& m) noexcept;
 
-	unsigned get_width() const
+	int get_width() const
 	{
 		return width;
 	}
 
-	unsigned get_height() const
+	int get_height() const
 	{
 		return height;
 	}
@@ -43,29 +42,29 @@ public:
 		return values;
 	}
 
-	float& at(unsigned row, unsigned column)
+	float& at(int row, int column)
 	{
-		assert(row < height);
-		assert(column < width);
-		return values[row * width + column];
+		assert(row >= 0 && row < height);
+		assert(column >= 0 && column < width);
+		return values[(size_t)row * width + column];
 	}
 
-	const float& at(unsigned row, unsigned column) const
+	const float& at(int row, int column) const
 	{
-		assert(row < height);
-		assert(column < width);
-		return values[row * width + column];
+		assert(row >= 0 && row < height);
+		assert(column >= 0 && column < width);
+		return values[(size_t)row * width + column];
 	}
 
-	float& at(unsigned index)
+	float& at(size_t index)
 	{
-		assert(index < height * width);
+		assert(index < (size_t)height * width);
 		return values[index];
 	}
 
-	const float& at(unsigned index) const
+	const float& at(size_t index) const
 	{
-		assert(index < height * width);
+		assert(index < (size_t)height * width);
 		return values[index];
 	}
 
@@ -79,9 +78,9 @@ public:
 		return values;
 	}
 
-	matrix submatrix(unsigned row_a, unsigned row_b, unsigned column_a, unsigned column_b) const;
+	matrix submatrix(int row_a, int row_b, int column_a, int column_b) const;
 
-	matrix submatrix(unsigned row_a, unsigned row_b) const;
+	matrix submatrix(int row_a, int row_b) const;
 
 	matrix transpose() const;
 };
@@ -128,6 +127,6 @@ inline matrix operator-(const matrix& m, float v)
 
 matrix transpose(const matrix& m);
 
-matrix submatrix(const matrix& m, unsigned row_a, unsigned row_b, unsigned column_a, unsigned column_b);
+matrix submatrix(const matrix& m, int row_a, int row_b, int column_a, int column_b);
 
 matrix sqrt(const matrix& m);

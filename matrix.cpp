@@ -2,7 +2,7 @@
 #include <cstring>
 #include <cmath>
 
-matrix::matrix(unsigned width, unsigned height) : width(width), height(height)
+matrix::matrix(int width, int height) : width(width), height(height)
 {
 	assert(width > 0);
 	assert(height > 0);
@@ -10,24 +10,23 @@ matrix::matrix(unsigned width, unsigned height) : width(width), height(height)
 	values = new float[width * height];
 }
 
-matrix::matrix(unsigned width, unsigned height, float fill_value) : width(width), height(height)
+matrix::matrix(int width, int height, float fill_value) : width(width), height(height)
 {
 	assert(width > 0);
 	assert(height > 0);
 
-	values = new float[width * height];
+	values = new float[(size_t)width * height];
 
-	for (unsigned long long i = 0; i < (unsigned long long)width * height; i++)
+	for (size_t i = 0; i < (size_t)width * height; i++)
 		values[i] = fill_value;
 }
 
 matrix::matrix(const matrix& m) : width(m.width), height(m.height)
 {
 	assert(m.is_alive());
-	values = new float[width * height];
+	values = new float[(size_t)width * height];
 
-	memcpy(values, m.values, width * height * sizeof(float));
-
+	memcpy(values, m.values, (size_t)width * height * sizeof(float));
 }
 
 matrix::matrix(matrix&& m) noexcept : width(m.width), height(m.height)
@@ -53,10 +52,10 @@ matrix& matrix::operator=(const matrix& m)
 		width = m.width;
 		height = m.height;
 
-		values = new float[width * height];
+		values = new float[(size_t)width * height];
 	}
 
-	memcpy(values, m.values, width * height * sizeof(float));
+	memcpy(values, m.values, (size_t)width * height * sizeof(float));
 
 	return *this;
 }
@@ -76,15 +75,15 @@ matrix& matrix::operator=(matrix&& m) noexcept
 	return *this;
 }
 
-matrix matrix::submatrix(unsigned row_a, unsigned row_b, unsigned column_a, unsigned column_b) const
+matrix matrix::submatrix(int row_a, int row_b, int column_a, int column_b) const
 {
-	assert(row_a < row_b);
-	assert(column_a < column_b);
+	assert(row_a >= 0 && row_a < row_b);
+	assert(column_a >= 0 && column_a < column_b);
 
 	matrix result(column_b - column_a, row_b - row_a);
 	for (int i = row_a; i < row_b; i++)
 	{
-		for (unsigned j = column_a; j < column_b; j++)
+		for (int j = column_a; j < column_b; j++)
 		{
 			result.at(i - row_a, j - column_a) = at(i, j);
 		}
@@ -92,26 +91,26 @@ matrix matrix::submatrix(unsigned row_a, unsigned row_b, unsigned column_a, unsi
 	return result;
 }
 
-matrix matrix::submatrix(unsigned row_a, unsigned row_b) const
+matrix matrix::submatrix(int row_a, int row_b) const
 {
-	assert(row_a < row_b);
+	assert(row_a >= 0 && row_a < row_b);
 
-	const unsigned new_height = row_b - row_a;
+	const int new_height = row_b - row_a;
 
 	matrix result(width, new_height);
-	memcpy(result.get_data(), values + row_a * width, new_height * width * sizeof(float));
+	memcpy(result.get_data(), values + row_a * width, (size_t)new_height * width * sizeof(float));
 	return result;
 }
 
-matrix submatrix(const matrix& m, unsigned row_a, unsigned row_b, unsigned column_a, unsigned column_b)
+matrix submatrix(const matrix& m, int row_a, int row_b, int column_a, int column_b)
 {
-	assert(row_a < row_b);
-	assert(column_a < column_b);
+	assert(row_a >= 0 && row_a < row_b);
+	assert(column_a >= 0 && column_a < column_b);
 
 	matrix result(column_b - column_a, row_b - row_a);
 	for (int i = row_a; i < row_b; i++)
 	{
-		for (unsigned j = column_a; j < column_b; j++)
+		for (int j = column_a; j < column_b; j++)
 		{
 			result.at(i - row_a, j - column_a) = m.at(i, j);
 		}
@@ -122,7 +121,7 @@ matrix submatrix(const matrix& m, unsigned row_a, unsigned row_b, unsigned colum
 matrix sqrt(const matrix& m)
 {
 	matrix result(m.get_width(), m.get_height());
-	for (unsigned i = 0; i < result.get_width() * result.get_height(); i++)
+	for (size_t i = 0; i < (size_t)result.get_width() * result.get_height(); i++)
 	{
 		result.at(i) = sqrtf(m.at(i));
 	}
@@ -138,7 +137,7 @@ matrix hadamard_product(const matrix& a, const matrix& b)
 
 	matrix result(a.get_width(), a.get_height());
 
-	for (unsigned i = 0; i < result.get_height()* a.get_width(); i++)
+	for (size_t i = 0; i < (size_t)result.get_height() * a.get_width(); i++)
 	{
 		result.at(i) = a.at(i) * b.at(i);
 	}
@@ -153,13 +152,13 @@ matrix operator*(const matrix& a, const matrix& b)
 	
 	matrix result(b.get_width(), a.get_height());
 
-	for (unsigned i = 0; i < result.get_height(); i++)
+	for (int i = 0; i < result.get_height(); i++)
 	{
-		for (unsigned j = 0; j < result.get_width(); j++)
+		for (int j = 0; j < result.get_width(); j++)
 		{
 			result.at(i, j) = 0;
 
-			for (unsigned k = 0; k < a.get_width(); k++)
+			for (int k = 0; k < a.get_width(); k++)
 			{
 				result.at(i, j) += a.at(i, k) * b.at(k, j);
 			}
@@ -175,7 +174,7 @@ matrix operator*(const matrix& m, float v)
 
 	matrix result(m.get_width(), m.get_height());
 
-	for (unsigned i = 0; i < result.get_width()*result.get_height(); i++)
+	for (size_t i = 0; i < (size_t)result.get_width()*result.get_height(); i++)
 	{
 		result.at(i) = m.at(i) * v;
 	}
@@ -189,7 +188,7 @@ matrix operator/(float v, const matrix& m)
 
 	matrix result(m.get_width(), m.get_height());
 
-	for (unsigned i = 0; i < result.get_width() * result.get_height(); i++)
+	for (size_t i = 0; i < (size_t)result.get_width() * result.get_height(); i++)
 	{
 		result.at(i) = v / m.at(i);
 	}
@@ -205,7 +204,7 @@ matrix operator+(const matrix& a, const matrix& b)
 
 	matrix result(a.get_width(), a.get_height());
 
-	for (unsigned i = 0; i < result.get_height() * result.get_width(); i++)
+	for (size_t i = 0; i < (size_t)result.get_height() * result.get_width(); i++)
 	{
 		result.at(i) = a.at(i) + b.at(i);
 	}
@@ -221,7 +220,7 @@ matrix operator-(const matrix& a, const matrix& b)
 
 	matrix result(a.get_width(), a.get_height());
 
-	for (unsigned i = 0; i < result.get_height() * result.get_width(); i++)
+	for (size_t i = 0; i < (size_t)result.get_height() * result.get_width(); i++)
 	{
 		result.at(i) = a.at(i) - b.at(i);
 	}
@@ -235,7 +234,7 @@ matrix operator-(const matrix& m)
 
 	matrix result(m.get_width(), m.get_height());
 
-	for (unsigned i = 0; i < result.get_height() * result.get_width(); i++)
+	for (size_t i = 0; i < (size_t)result.get_height() * result.get_width(); i++)
 	{
 		result.at(i) = -m.at(i);
 	}
@@ -249,7 +248,7 @@ matrix operator+(const matrix& m, float v)
 
 	matrix result(m.get_width(), m.get_height());
 
-	for (unsigned i = 0; i < result.get_height() * result.get_width(); i++)
+	for (size_t i = 0; i < (size_t)result.get_height() * result.get_width(); i++)
 	{
 		result.at(i) = m.at(i) + v;
 	}
@@ -263,7 +262,7 @@ matrix operator-(float v, const matrix& m)
 
 	matrix result(m.get_width(), m.get_height());
 
-	for (unsigned i = 0; i < result.get_height() * result.get_width(); i++)
+	for (size_t i = 0; i < (size_t)result.get_height() * result.get_width(); i++)
 	{
 		result.at(i) = v - m.at(i);
 	}
@@ -277,9 +276,9 @@ matrix transpose(const matrix& m)
 
 	matrix result(m.get_height(), m.get_width());
 
-	for (unsigned i = 0; i < result.get_height(); i++)
+	for (int i = 0; i < result.get_height(); i++)
 	{
-		for (unsigned j = 0; j < result.get_width(); j++)
+		for (int j = 0; j < result.get_width(); j++)
 		{
 			result.at(i, j) = m.at(j, i);
 		}
@@ -294,9 +293,9 @@ matrix matrix::transpose() const
 
 	matrix result(get_height(), get_width());
 
-	for (unsigned i = 0; i < result.get_height(); i++)
+	for (int i = 0; i < result.get_height(); i++)
 	{
-		for (unsigned j = 0; j < result.get_width(); j++)
+		for (int j = 0; j < result.get_width(); j++)
 		{
 			result.at(i, j) = at(j, i);
 		}

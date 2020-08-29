@@ -3,29 +3,32 @@
 
 void neural_net::layer::init()
 {
-	for (unsigned i = 0; i < size; i++)
+	for (int i = 0; i < size; i++)
 	{
 		biases.at(0, i) = random_float(-1.f, 1.f);
 
-		for (unsigned j = 0; j < prev_layer_size; j++)
+		for (int j = 0; j < prev_layer_size; j++)
 		{
 			weights.at(j, i) = random_float(-1.f, 1.f);
 		}
 	}
 }
 
-neural_net::neural_net(const unsigned num_layers, const unsigned* const layer_sizes)
+neural_net::neural_net(const int num_layers, const int* const layer_sizes)
 {
 	assert(num_layers > 1);
 	assert(layer_sizes != nullptr);
+	assert(layer_sizes[0] > 0);
 
 	input_layer_size = layer_sizes[0];
 
 	layers.reserve(num_layers - 1);
 
 	//Init layers
-	for (unsigned i = 1; i < num_layers; i++)
+	for (int i = 1; i < num_layers; i++)
 	{
+		assert(layer_sizes[i] > 0);
+
 		layers.emplace_back(layer_sizes[i], layer_sizes[i - 1]);
 		layers.back().init();
 	}
@@ -76,7 +79,7 @@ std::vector<neural_net::layer> neural_net::backpropagation(const matrix& input, 
 
 	matrix x = values.back() - required_output; // Delta
 
-	for (unsigned i = layers.size(); i > 0; i--) // For every layer starting from the last
+	for (int i = layers.size(); i > 0; i--) // For every layer starting from the last
 	{
 		x = hadamard_product(x, activation_function_derivative(values[i])); // Activation function derivative
 		gradient[i - 1].size = layers[i - 1].size;
@@ -100,7 +103,7 @@ void neural_net::backpropagation(const matrix& input, const matrix& required_out
 
 	matrix x = values.back() - required_output; // Delta
 
-	for (unsigned i = layers.size(); i > 0; i--) // For every layer starting from the last
+	for (int i = layers.size(); i > 0; i--) // For every layer starting from the last
 	{
 		x = hadamard_product(x, activation_function_derivative(values[i])); // Activation function derivative
 		matrix weights_derivative = transpose(values[i - 1]) * x; // Weights partial derivative
@@ -110,39 +113,41 @@ void neural_net::backpropagation(const matrix& input, const matrix& required_out
 	}
 }
 
-void neural_net::train_batch(const matrix& input, const matrix& required_output, unsigned iter_num, float rate)
+void neural_net::train_batch(const matrix& input, const matrix& required_output, int iter_num, float rate)
 {
 	assert(input.is_alive() && required_output.is_alive());
 	assert(input.get_width() == input_layer_size);
 	assert(required_output.get_width() == layers.back().size);
 	assert(required_output.get_height() == input.get_height());
 	assert(rate > 0);
+	assert(iter_num > 0);
 
-	for (unsigned i = 0; i < iter_num; i++)
+	for (int i = 0; i < iter_num; i++)
 	{
 		backpropagation(input, required_output, rate);
 	}
 }
 
-void neural_net::train_stochastic(const matrix& input, const matrix& required_output, unsigned iter_num, float rate)
+void neural_net::train_stochastic(const matrix& input, const matrix& required_output, int iter_num, float rate)
 {
 	assert(input.is_alive() && required_output.is_alive());
 	assert(input.get_width() == input_layer_size);
 	assert(required_output.get_width() == layers.back().size);
 	assert(required_output.get_height() == input.get_height());
 	assert(rate > 0);
+	assert(iter_num > 0);
 
-	const unsigned num_samples = input.get_height();
+	const int num_samples = input.get_height();
 
 	static std::vector<layer> grad = backpropagation(input.submatrix(0, 1), required_output.submatrix(0, 1));
 
 	const float fraction = 0.7f;
-	for (unsigned i = 0; i < iter_num; i++)
+	for (int i = 0; i < iter_num; i++)
 	{
 		const unsigned sample_index = random_int(0, num_samples - 1);
 		auto new_grad = backpropagation(input.submatrix(sample_index, sample_index+1), required_output.submatrix(sample_index, sample_index+1));
 
-		for (unsigned j = 0; j < layers.size(); j++)
+		for (int j = 0; j < (int)layers.size(); j++)
 		{
 			grad[j].weights = grad[j].weights * fraction + new_grad[j].weights * rate;
 			grad[j].biases = grad[j].biases * fraction + new_grad[j].biases * rate;
@@ -153,15 +158,17 @@ void neural_net::train_stochastic(const matrix& input, const matrix& required_ou
 	}
 }
 
-void neural_net::train_mini_batch(const std::vector<matrix>& input, const std::vector<matrix>& required_output, unsigned iter_num, float rate)
+void neural_net::train_mini_batch(const std::vector<matrix>& input, const std::vector<matrix>& required_output, int iter_num, float rate)
 {
 	assert(input.size() == required_output.size());
 	assert(rate > 0);
-	const unsigned num_batches = input.size();
+	assert(iter_num > 0);
+	
+	const int num_batches = (int)input.size();
 
-	for (unsigned i = 0; i < iter_num; i++)
+	for (int i = 0; i < iter_num; i++)
 	{
-		const unsigned batch_index = random_int(0, num_batches-1);
+		const int batch_index = random_int(0, num_batches-1);
 		backpropagation(input[batch_index], required_output[batch_index], rate);
 	}
 }
@@ -171,25 +178,25 @@ bool neural_net::save_to_file(const char* const file_name)
 	std::ofstream f(file_name, std::ios::binary | std::ios::trunc);
 	if (!f.is_open()) return false;
 	//Magic number
-	write_var(f, 0x00230298u);
+	write_var(f, (uint32_t)0x00230298u);
 	//Is little endian
 	write_var(f, is_little_endian());
 	//Number of layers
-	write_var(f, unsigned(layers.size() + 1));
+	write_var(f, int32_t(layers.size() + 1));
 	//Input layer size
-	write_var(f, input_layer_size);
+	write_var(f, (int32_t)input_layer_size);
 	//Other layers sizes
 	for (const layer& l : layers)
-		write_var(f, l.size);
+		write_var(f, (int32_t)l.size);
 	//Weights and biases
 	for (const layer& l : layers)
 	{
 		//Weights
 		f.write(reinterpret_cast<const char*>(l.weights.get_data()),
-			(uint64_t)l.weights.get_width() * l.weights.get_height() * sizeof(float));
+			(std::streamsize)l.weights.get_width() * l.weights.get_height() * sizeof(float));
 		//Biases
 		f.write(reinterpret_cast<const char*>(l.biases.get_data()),
-			(uint64_t)l.biases.get_width() * sizeof(float));
+			(std::streamsize)l.biases.get_width() * sizeof(float));
 	}
 
 	return true;
@@ -203,10 +210,10 @@ bool neural_net::load_from_file(const char* const file_name)
 	char* file_pointer = net_data.get_data();
 
 	//Magic number
-	const unsigned magic_number = *reinterpret_cast<unsigned*>(file_pointer);
+	const uint32_t magic_number = *reinterpret_cast<unsigned*>(file_pointer);
 	file_pointer += sizeof(unsigned);
 
-	if (magic_number != 0x00230298u && magic_number != 0x98022300u)
+	if (magic_number != (uint32_t)0x00230298 && magic_number != (uint32_t)0x98022300)
 		return false;
 
 	const bool little_endian = *reinterpret_cast<bool*>(file_pointer);
@@ -222,10 +229,10 @@ bool neural_net::load_from_file(const char* const file_name)
 		}
 	}
 
-	const unsigned num_layers = *reinterpret_cast<unsigned*>(file_pointer);
+	const int32_t num_layers = *reinterpret_cast<int32_t*>(file_pointer);
 	file_pointer += 4;
 
-	const unsigned* layers_sizes = reinterpret_cast<unsigned*>(file_pointer);
+	const int32_t* layers_sizes = reinterpret_cast<int32_t*>(file_pointer);
 	file_pointer += 4 * num_layers;
 
 	input_layer_size = layers_sizes[0];
@@ -233,15 +240,15 @@ bool neural_net::load_from_file(const char* const file_name)
 	layers.clear();
 	layers.reserve(num_layers - 1);
 
-	for (unsigned i = 1; i < num_layers; i++)
+	for (int i = 1; i < num_layers; i++)
 	{
 		layer& l = layers.emplace_back(layers_sizes[i], layers_sizes[i - 1]);
 
-		const unsigned weights_size = l.weights.get_width() * l.weights.get_height() * sizeof(float);;
+		const size_t weights_size = (size_t)l.weights.get_width() * l.weights.get_height() * sizeof(float);;
 		memcpy(l.weights.get_data(), file_pointer, weights_size);
 		file_pointer += weights_size;
 
-		const unsigned biases_size = l.biases.get_width() * sizeof(float);
+		const size_t biases_size = (size_t)l.biases.get_width() * sizeof(float);
 		memcpy(l.biases.get_data(), file_pointer, biases_size);
 		file_pointer += biases_size;
 	}
@@ -254,8 +261,7 @@ float neural_net::calculate_error(matrix values, matrix required_values)
 	matrix delta = required_values - values;
 
 	float delta_sqr_sum = 0;
-	unsigned size = delta.get_height() * delta.get_width();
-	for (unsigned i = 0; i < size; i++)
+	for (size_t i = 0; i < (size_t)delta.get_height() * delta.get_width(); i++)
 	{
 		delta_sqr_sum += delta.at(i) * delta.at(i);
 	}
@@ -265,7 +271,7 @@ float neural_net::calculate_error(matrix values, matrix required_values)
 
 matrix neural_net::activation_function(matrix input)
 {
-	for (unsigned i = 0; i < input.get_height() * input.get_width(); i++)
+	for (size_t i = 0; i < (size_t)input.get_height() * input.get_width(); i++)
 	{
 		input.at(i) = sigmoid(input.at(i));
 	}
@@ -274,7 +280,7 @@ matrix neural_net::activation_function(matrix input)
 
 matrix neural_net::activation_function_derivative(matrix input)
 {
-	for (unsigned i = 0; i < input.get_height() * input.get_width(); i++)
+	for (size_t i = 0; i < (size_t)input.get_height() * input.get_width(); i++)
 	{
 		input.at(i) = sigmoid_derivative(input.at(i));
 	}

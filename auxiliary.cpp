@@ -8,12 +8,14 @@ static std::mt19937_64 g1(std::chrono::system_clock::now().time_since_epoch().co
 
 float random_float(float min, float max)
 {
+	assert(min < max);
 	std::uniform_real_distribution<float> dis(min, max);
 	return dis(g1);
 }
 
 int	random_int(int min, int max)
 {
+	assert(min < max);
 	std::uniform_int_distribution<int> dis(min, max);
 	return dis(g1);
 }

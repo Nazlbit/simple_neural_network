@@ -15,25 +15,25 @@ public:
 private:
 	struct layer
 	{
-		unsigned size = 0;
-		unsigned prev_layer_size = 0;
+		int size = 0;
+		int prev_layer_size = 0;
 		matrix weights;
 		matrix biases;
 
 		layer() = default;
-		layer(unsigned size, unsigned prev_layer_size) : size(size), prev_layer_size(prev_layer_size), weights(size, prev_layer_size), biases(size, 1) {}
-		layer(unsigned size, unsigned prev_layer_size, float init_val) : size(size), prev_layer_size(prev_layer_size), weights(size, prev_layer_size, init_val), biases(size, 1, init_val) {}
+		layer(int size, int prev_layer_size) : size(size), prev_layer_size(prev_layer_size), weights(size, prev_layer_size), biases(size, 1) {}
+		layer(int size, int prev_layer_size, float init_val) : size(size), prev_layer_size(prev_layer_size), weights(size, prev_layer_size, init_val), biases(size, 1, init_val) {}
 
 
 		void init();
 	};
 
 	std::vector<layer> layers;
-	unsigned input_layer_size;
+	int input_layer_size;
 
 public:
 
-	neural_net(const unsigned num_layers, const unsigned* const layer_sizes);
+	neural_net(const int num_layers, const int* const layer_sizes);
 	neural_net(const char* const file_name);
 
 	matrix run(matrix input) const;
@@ -44,11 +44,11 @@ public:
 
 	void backpropagation(const matrix& input, const matrix& required_output, float rate);
 
-	void train_batch(const matrix& input, const matrix& required_output, unsigned iter_num, float rate);
+	void train_batch(const matrix& input, const matrix& required_output, int iter_num, float rate);
 
-	void train_stochastic(const matrix& input, const matrix& required_output, unsigned iter_num, float rate);
+	void train_stochastic(const matrix& input, const matrix& required_output, int iter_num, float rate);
 
-	void train_mini_batch(const std::vector<matrix>& input, const std::vector<matrix>& required_output, unsigned iter_num, float rate);
+	void train_mini_batch(const std::vector<matrix>& input, const std::vector<matrix>& required_output, int iter_num, float rate);
 
 	bool save_to_file(const char* const file_name);
 
